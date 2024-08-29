@@ -1,0 +1,149 @@
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(forcats)
+library(ggtext)
+library(showtext)
+
+# Load a professional font
+font_add_google("Roboto", "roboto")
+showtext_auto()
+
+# Player groups (ordered by strength level)
+  
+
+HU <- c("Melvin Andre", "Måns Möller", "Andreas Fuchs Edberg", "Anton Fahlen", "Rasmus Strömberg",
+        "Julian Göranson Ransgart", "Melker Melander", "Max Andersson", "Edwin Kukacka", "Alex Lundell", 
+        "Anton Waldna", "Isac Gausel", "Tim Heed", "Jack Almenäs", "Andreas Eklöw", "Emil Zander", 
+        "Jack Lindblom", "Fredric Berntsson")
+
+# Exercises
+AP_Exercises <- c("Knäböj", "Frivändning", "Bänkpress", "Chins", "Dips", "Vila", "Vila")
+HU_Exercises <- c("Knäböj", "Frivändning", "Bänkpress", "Chins", "Dips")
+
+# Function to create ordered groups
+create_ordered_groups <- function(players, group_size = 5) {
+  split(players, ceiling(seq_along(players) / group_size))
+}
+
+# Assign exercises with additional rest periods
+assign_exercises <- function(groups, exercises) {
+  num_groups <- length(groups)
+  num_exercises <- length(exercises)
+  
+  # Create the schedule matrix
+  schedule_matrix <- matrix("", nrow = num_groups, ncol = num_exercises)
+  
+  for (round in 1:num_exercises) {
+    # Rotate exercises for each round
+    rotated_exercises <- c(exercises[(round:num_exercises)], exercises[1:(round-1)])
+    for (group in 1:num_groups) {
+      # Ensures no two groups have the same exercise in the same round
+      exercise_index <- (group + round - 2) %% num_exercises + 1
+      schedule_matrix[group, round] <- rotated_exercises[exercise_index]
+    }
+  }
+  
+  # Convert matrix back to list format
+  lapply(1:num_groups, function(i) {
+    list(group = groups[[i]], exercises = schedule_matrix[i,])
+  })
+}
+
+# Create schedules for both AP and HU
+ap_groups <- create_ordered_groups(AP)
+hu_groups <- create_ordered_groups(HU)
+
+set.seed(123)  # For reproducibility
+ap_schedule <- assign_exercises(ap_groups, AP_Exercises)
+hu_schedule <- assign_exercises(hu_groups, HU_Exercises)
+
+# Function to prepare data for visualization
+prepare_data <- function(schedule, team) {
+  data <- do.call(rbind, lapply(seq_along(schedule), function(i) {
+    group <- schedule[[i]]
+    expand.grid(
+      Team = team,
+      Group = i,
+      Player = group$group,
+      Exercise = group$exercises,
+      stringsAsFactors = FALSE
+    ) %>%
+      mutate(Order = rep(seq_along(group$exercises), each = length(group$group)))
+  }))
+  data$Player <- factor(data$Player, levels = rev(unique(data$Player)))
+  return(data)
+}
+
+# Prepare data for both teams
+ap_data <- prepare_data(ap_schedule, "AP")
+hu_data <- prepare_data(hu_schedule, "HU")
+
+# Function to create the plot
+create_professional_team_plot <- function(data, team_name) {
+  # Define a professional color palette
+  color_palette <- c(
+    "Bänkpress" = "#1f77b4", "Dips" = "#ff7f0e", 
+    "Knäböj" = "#2ca02c", "Chins" = "#d62728", 
+    "Frivändning" = "#9467bd", "Vila" = "#f0f0f0"
+  )
+  
+  ggplot(data, aes(x = Order, y = Player, fill = Exercise)) +
+    geom_tile(color = "white", linewidth = 0.2) +
+    geom_text(aes(label = Exercise), 
+              size = 2, fontface = "bold", 
+              family = "roboto", 
+              color = ifelse(data$Exercise == "Vila", "grey50", "white")) +
+    facet_grid(Group ~ ., scales = "free_y", space = "free_y", switch = "y") +
+    scale_fill_manual(values = color_palette, na.value = "white") +
+    scale_x_continuous(breaks = 1:max(data$Order), labels = as.character(1:max(data$Order)),
+                       expand = c(0, 0)) +
+    scale_y_discrete(expand = expansion(add = c(0, 0.1))) +
+    labs(title = paste(team_name, "Schema"),
+         x = "Ordning",
+         y = NULL,
+         fill = "Tester") +
+    theme_minimal(base_family = "roboto") +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold", margin = margin(b = 5)),
+      plot.subtitle = element_text(hjust = 0.5, size = 10, margin = margin(b = 5)),
+      axis.text.y = element_text(size = 6, hjust = 1),
+      axis.text.x = element_text(size = 8),
+      strip.text.y = element_text(size = 8, face = "bold", angle = 0),
+      strip.placement = "outside",
+      legend.position = "bottom",
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.spacing = unit(0.1, "lines"),
+      plot.margin = margin(5, 5, 5, 5),
+      plot.background = element_rect(fill = "white", color = NA),
+      panel.background = element_rect(fill = "white", color = NA),
+      strip.background = element_rect(fill = "grey95", color = NA),
+      panel.border = element_rect(color = "grey80", fill = NA, linewidth = 0.2)
+    )
+}
+
+# Function to save plot as a compact PDF
+save_professional_pdf <- function(plot, filename) {
+  ggsave(filename,
+         plot = plot,
+         device = cairo_pdf,
+         width = 11.69,  # A4 landscape width in inches
+         height = 8.27,  # A4 landscape height in inches
+         units = "in",
+         dpi = 300)
+}
+
+# Create and save AP plot
+ap_plot <- create_professional_team_plot(ap_data, "AP")
+save_professional_pdf(ap_plot, "AP_exercise_schedule_professional.pdf")
+
+# Create and save HU plot
+hu_plot <- create_professional_team_plot(hu_data, "HU")
+save_professional_pdf(hu_plot, "HU_exercise_schedule_professional.pdf")
+
+# Optionally, display the plots in the R environment
+print(ap_plot)
+print(hu_plot)
+

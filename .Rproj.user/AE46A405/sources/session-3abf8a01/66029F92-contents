@@ -1,0 +1,10 @@
+library(STMr)
+
+block_constant_4x4 <- scheme_generic(reps = c(4,4,4,4), adjustment = 0, vertical_planning = vertical_constant,
+               progression_table = progression_RIR, progression_table_control = list(volume = "extensive"))
+               
+
+plot(block_constant_4x4)
+
+
+vertical
