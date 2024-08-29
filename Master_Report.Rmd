@@ -1,0 +1,148 @@
+---
+title: ""
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    css: styles.css
+    includes:
+      in_header: header.html
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(DT)
+library(plotly)
+library(readr)
+
+# Define logo URL
+logo_url <- "https://cdn03.svenskalag.se/img/headers/special_hammarbyhandboll-2019.jpg?2"
+
+# Load the cleaned test data
+test_data_clean <- read_csv("test_data_clean.csv")
+
+# Print diagnostic information
+print(str(test_data_clean))
+print(summary(test_data_clean$Cooper_seconds))
+
+# Function to safely format time (now handles vectors)
+safe_time_format <- function(x) {
+  sapply(x, function(val) {
+    if(is.na(val) || !is.numeric(val) || val <= 0) return("N/A")
+    sprintf("%02d:%02d", floor(val / 60), round(val %% 60))
+  })
+}
+
+# Create header.html file
+cat('<div class="master-report">
+  <div class="logo-container">
+    <img src="', logo_url, '" alt="Hammarby Handboll Logo" class="logo">
+    <h1 class="report-title">Hammarby Handboll - Master Test Report</h1>
+  </div>
+</div>', file = "header.html")
+```
+
+Row {data-height=500}
+-----------------------------------------------------------------------
+
+### Team Overview
+
+```{r}
+# Create a summary table for each team
+summary_table <- test_data_clean %>%
+  group_by(Lag) %>%
+  summarise(
+    across(c(Bänkpress, Knäböj, Frivändning), 
+           list(mean = ~mean(., na.rm = TRUE), 
+                median = ~median(., na.rm = TRUE), 
+                min = ~min(., na.rm = TRUE), 
+                max = ~max(., na.rm = TRUE)),
+           .names = "{.col}_{.fn}"),
+    Cooper_mean = mean(Cooper_seconds, na.rm = TRUE),
+    Cooper_median = median(Cooper_seconds, na.rm = TRUE),
+    Cooper_min = min(Cooper_seconds[Cooper_seconds > 0], na.rm = TRUE),
+    Cooper_max = max(Cooper_seconds, na.rm = TRUE)
+  ) %>%
+  mutate(across(starts_with("Cooper_"), safe_time_format))
+
+# Display the summary table
+datatable(summary_table, options = list(pageLength = -1, scrollY = "400px"))
+```
+
+Row {data-height=350}
+-----------------------------------------------------------------------
+
+### Strength Tests Distribution
+
+```{r}
+strength_data <- test_data_clean %>%
+  select(Namn, Lag, Bänkpress, Knäböj, Frivändning) %>%
+  pivot_longer(cols = c(Bänkpress, Knäböj, Frivändning), names_to = "Test", values_to = "Value")
+
+p <- ggplot(strength_data, aes(x = Test, y = Value, color = Lag)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  labs(title = "Distribution of Strength Test Results by Team", y = "Weight (kg)") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+### Cooper Test Distribution
+
+```{r}
+cooper_data <- test_data_clean %>%
+  select(Namn, Lag, Cooper_seconds) %>%
+  filter(!is.na(Cooper_seconds), Cooper_seconds > 0) %>%
+  mutate(
+    Cooper_formatted = safe_time_format(Cooper_seconds),
+    Cooper_minutes = Cooper_seconds / 60
+  )
+
+p <- ggplot(cooper_data, aes(x = Cooper_minutes, y = factor(0), text = paste(Namn, "<br>Time:", Cooper_formatted))) +
+  geom_point(aes(color = Lag), size = 3) +
+  labs(title = "Distribution of Cooper Test Results by Team", 
+       x = "Time (minutes)", 
+       y = NULL) +
+  theme_minimal() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+# Custom function to format x-axis labels
+format_time <- function(x) {
+  sprintf("%d:%02d", floor(x), round((x %% 1) * 60))
+}
+
+p <- ggplotly(p, tooltip = "text") %>%
+  layout(
+    xaxis = list(
+      tickmode = "array",
+      tickvals = seq(floor(min(cooper_data$Cooper_minutes)), 
+                     ceiling(max(cooper_data$Cooper_minutes)), 
+                     by = 0.5),
+      ticktext = format_time(seq(floor(min(cooper_data$Cooper_minutes)), 
+                                 ceiling(max(cooper_data$Cooper_minutes)), 
+                                 by = 0.5))
+    )
+  )
+
+p
+```
+
+Row {data-height=350}
+-----------------------------------------------------------------------
+
+### Individual Player Data
+
+```{r}
+datatable(
+  test_data_clean %>%
+    select(Namn, Lag, Bänkpress, Knäböj, Frivändning, Cooper_formatted) %>%
+    rename("Cooper Test" = Cooper_formatted),
+  options = list(pageLength = 10)
+)
+```
+

@@ -1,0 +1,73 @@
+<style>
+body, html {
+    margin: 0;
+    padding: 0;
+}
+
+.logo-container {
+  text-align: center;
+  padding: 10px 0;
+  background-color: #007B4B;  /* Hammarby green */
+}
+
+.logo {
+  max-width: 300px;
+  height: auto;
+}
+
+.content-container {
+    padding: 20px;
+}
+
+.header-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-image {
+  width: 150px;
+  height: 150px;
+  object-fit: cover;
+  object-position: center top;
+  border-radius: 10px;
+  margin-right: 20px;
+}
+
+.header-title {
+  font-size: 24px;
+  color: #333;
+}
+</style>
+<div class="logo-container">
+  <img src="`r params$logo_url`" alt="Hammarby Handboll Logo" class="logo">
+</div>
+
+```{r player-header, echo=FALSE, results='asis'}
+cat(paste0('<div class="header-container">
+  <img src="', params$image_url, '" alt="', params$player_name, '" class="header-image">
+  <h1 class="header-title">Test Rapport ', params$player_name, '</h1>
+</div>'))
+```
+/* New styles for master report */
+.master-report .logo-container {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+}
+
+.master-report .logo {
+  max-width: 100px;
+  height: auto;
+}
+
+.master-report .report-title {
+  color: white;
+  margin-left: 20px;
+  font-size: 24px;
+}
+
+/* Remove default flexdashboard header in master report */
+.master-report .navbar {
+  display: none;
+}
